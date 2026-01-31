@@ -12,7 +12,7 @@ import App from './App.tsx'
 
 // Initialize Sentry
 Sentry.init({
-  dsn: 'https://2ba173aad1f4e441630a6bf735096d44@o4510801689575424.ingest.de.sentry.io/4510803830505552',
+  dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: import.meta.env.MODE || 'development',
   integrations: [
     Sentry.browserTracingIntegration(),
