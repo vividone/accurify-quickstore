@@ -1,0 +1,167 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: accurify-postgres
+    environment:
+      POSTGRES_DB: accurify
+      POSTGRES_USER: accurify
+      POSTGRES_PASSWORD: accurify
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U accurify -d accurify"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: accurify-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./accurify-api
+      dockerfile: Dockerfile
+    container_name: accurify-api
+    env_file:
+      - ./accurify-api/.env
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: accurify
+      DB_USERNAME: accurify
+      DB_PASSWORD: accurify
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-that-should-be-at-least-256-bits-long}
+      # Sentry configuration
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+      # Email configuration
+      MAIL_FROM: ${MAIL_FROM:-noreply@accurify.co}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Accurify}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3004}
+      # External service keys
+      MONO_SECRET_KEY: ${MONO_SECRET_KEY:-}
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      PAYSTACK_PUBLIC_KEY: ${PAYSTACK_PUBLIC_KEY:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  # Marketing Website (Public facing)
+  # Routes: /, /features, /pricing, /about
+  marketing:
+    build:
+      context: ./accurify-marketing
+      dockerfile: Dockerfile
+      args:
+        VITE_APP_URL: ${VITE_APP_URL:-http://localhost:3004}
+    container_name: accurify-marketing
+    environment:
+      VITE_APP_URL: ${VITE_APP_URL:-http://localhost:3004}
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  # Web Application (Protected App)
+  # Routes: /app/*, /login, /register, /onboarding, etc.
+  web:
+    build:
+      context: ./accurify-web
+      dockerfile: Dockerfile
+    container_name: accurify-web
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+      VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+    ports:
+      - "3004:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  # QuickStore Storefront (Public store pages)
+  # Routes: /store/:slug, /store/:slug/:productSlug
+  storefront:
+    build:
+      context: ./accurify-storefront
+      dockerfile: Dockerfile
+    container_name: accurify-storefront
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api/v1}
+      VITE_SENTRY_DSN: ${VITE_STOREFRONT_SENTRY_DSN:-}
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: accurify-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@accurify.co
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    profiles:
+      - tools
+
+  # Optional: Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: accurify-redis-commander
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+  redis_data:
