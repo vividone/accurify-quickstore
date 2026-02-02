@@ -1,8 +1,8 @@
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
-import PublicStorefrontPage from '@/pages/PublicStorefrontPage';
-import StoreDirectoryPage from '@/pages/StoreDirectoryPage';
-import ProductDetailPage from '@/pages/ProductDetailPage';
+import { PublicStorefrontPage } from '@/pages/PublicStorefrontPage';
+import { StoreDirectoryPage } from '@/pages/StoreDirectoryPage';
+import { ProductDetailPage } from '@/pages/ProductDetailPage';
 import { CartProvider } from '@/context/CartContext';
 import './App.scss'
 
