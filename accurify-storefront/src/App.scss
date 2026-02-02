@@ -1,0 +1,11 @@
+@use '@carbon/react/scss/type' as *;
+@use '@carbon/react/scss/colors' as *;
+@use '@carbon/react/scss/spacing' as *;
+
+// Global app styles can go here
+body {
+    margin: 0;
+    font-family: 'Satoshi', sans-serif;
+    background-color: $gray-10;
+    color: $gray-100;
+}

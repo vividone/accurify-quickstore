@@ -57,6 +57,9 @@ services:
       MONO_SECRET_KEY: ${MONO_SECRET_KEY:-}
       PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
       PAYSTACK_PUBLIC_KEY: ${PAYSTACK_PUBLIC_KEY:-}
+      # CORS configuration
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3004,http://localhost:5173,http://localhost:5174}
+      ACCURIFY_CORS_ALLOWED_ORIGINS: ${ACCURIFY_CORS_ALLOWED_ORIGINS:-http://localhost:3004,http://localhost:3000,http://localhost:5173,http://localhost:5174}
     ports:
       - "8080:8080"
     depends_on:
