@@ -24,6 +24,7 @@ export function ProductDetailPage() {
   const { addToCart, getCartItemCount } = useCart();
   const [copied, setCopied] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   const cartItemCount = getCartItemCount();
 
@@ -176,8 +177,13 @@ export function ProductDetailPage() {
         <header className="storefront__header">
           <div className="storefront__header-content">
             <Link to={`/${storeSlug}`} className="storefront__brand" style={{ textDecoration: 'none', color: 'inherit' }}>
-              {store.logoUrl ? (
-                <img src={store.logoUrl} alt={store.storeName} className="storefront__logo" />
+              {store.logoUrl && !logoError ? (
+                <img
+                  src={store.logoUrl}
+                  alt={store.storeName}
+                  className="storefront__logo"
+                  onError={() => setLogoError(true)}
+                />
               ) : (
                 <div className="storefront__logo-placeholder">
                   {store.storeName.charAt(0).toUpperCase()}
