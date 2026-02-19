@@ -9,11 +9,38 @@
   flex-direction: column;
   background-color: $gray-10;
 
-  &--loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
+  // Skeleton loading placeholders
+  &__skeleton-logo {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 8px;
+  }
+
+  &__skeleton-search {
+    flex: 1;
+    width: 100% !important;
+    height: 48px !important;
+  }
+
+  &__skeleton-category {
+    width: 200px !important;
+    height: 48px !important;
+    flex-shrink: 0;
+
+    @include breakpoint-down('md') {
+      width: 100% !important;
+    }
+  }
+
+  &__skeleton-store-logo {
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  &__store-card--skeleton {
+    pointer-events: none;
   }
 
   // Hero Section

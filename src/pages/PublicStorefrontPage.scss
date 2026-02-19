@@ -10,7 +10,6 @@
   flex-direction: column;
   background-color: $gray-10;
 
-  &--loading,
   &--error,
   &--offline {
     display: flex;
@@ -36,6 +35,25 @@
       @include type-style('body-01');
       color: $gray-70;
     }
+  }
+
+  // Skeleton loading placeholders
+  &__skeleton-logo {
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 8px;
+  }
+
+  &__skeleton-cart-btn {
+    width: 100px !important;
+    height: 40px !important;
+    border-radius: 4px;
+  }
+
+  &__skeleton-search {
+    width: 100% !important;
+    height: 40px !important;
+    border-radius: 0;
   }
 
   &__header {
@@ -131,6 +149,121 @@
     }
   }
 
+  &__search-row {
+    display: flex;
+    gap: $spacing-04;
+    align-items: flex-start;
+
+    @include breakpoint-down('md') {
+      flex-direction: column;
+    }
+  }
+
+  &__search-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__sort-select {
+    flex-shrink: 0;
+    width: 200px;
+
+    .cds--select-input {
+      background-color: $white-0;
+    }
+
+    @include breakpoint-down('md') {
+      width: 100%;
+    }
+  }
+
+  // Business Hours
+  &__hours {
+    background-color: $white-0;
+    border-bottom: 1px solid $gray-20;
+    padding: $spacing-04 $spacing-05;
+  }
+
+  &__hours-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $spacing-04;
+
+    @include breakpoint-down('sm') {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+
+  &__hours-today {
+    display: flex;
+    align-items: center;
+    gap: $spacing-03;
+    @include type-style('body-compact-01');
+    color: $gray-80;
+
+    svg {
+      color: var(--store-primary);
+      flex-shrink: 0;
+    }
+
+    strong {
+      font-weight: 600;
+    }
+  }
+
+  &__hours-toggle {
+    display: flex;
+    align-items: center;
+    gap: $spacing-02;
+    @include type-style('label-01');
+    color: var(--store-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: $spacing-02 0;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  &__hours-schedule {
+    max-width: 1200px;
+    margin: $spacing-04 auto 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: $spacing-02 $spacing-05;
+    padding-top: $spacing-04;
+    border-top: 1px solid $gray-20;
+  }
+
+  &__hours-day {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: $spacing-02 $spacing-03;
+    border-radius: 4px;
+    @include type-style('body-compact-01');
+
+    &--today {
+      background-color: rgba(15, 98, 254, 0.08);
+      font-weight: 600;
+    }
+  }
+
+  &__hours-day-name {
+    color: $gray-80;
+  }
+
+  &__hours-day-time {
+    color: $gray-60;
+    @include type-style('label-01');
+  }
+
   &__products {
     flex: 1;
     max-width: 1200px;
@@ -212,6 +345,25 @@
 
   &:hover {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  }
+
+  &--skeleton {
+    pointer-events: none;
+  }
+
+  &__skeleton-image {
+    width: 100% !important;
+    height: 180px !important;
+
+    @include breakpoint-down('sm') {
+      height: 140px !important;
+    }
+  }
+
+  &__skeleton-button {
+    width: 60px !important;
+    height: 32px !important;
+    border-radius: 4px;
   }
 
   &__link {
@@ -405,6 +557,26 @@
     margin-top: $spacing-02;
     padding-top: $spacing-02;
     border-top: 1px solid $gray-30;
+  }
+
+  &__whatsapp {
+    margin-top: $spacing-04;
+    padding-top: $spacing-04;
+    border-top: 1px solid $gray-20;
+    text-align: center;
+  }
+
+  &__whatsapp-button {
+    width: 100%;
+    justify-content: center;
+    color: #25d366;
+    border-color: #25d366;
+
+    &:hover {
+      background-color: #25d366;
+      border-color: #25d366;
+      color: $white-0;
+    }
   }
 }
 
