@@ -6,7 +6,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import {
     Theme,
-    Loading,
     Button,
     TextInput,
     Tile,
@@ -14,6 +13,10 @@ import {
     Modal,
     Form,
     InlineNotification,
+    Select,
+    SelectItem,
+    SkeletonText,
+    SkeletonPlaceholder,
 } from '@carbon/react';
 import {
     ShoppingCart,
@@ -26,6 +29,10 @@ import {
     Location,
     Wallet,
     ArrowRight,
+    Time,
+    ChevronDown,
+    ChevronUp,
+    ChatLaunch,
 } from '@carbon/icons-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,6 +47,31 @@ import './PublicStorefrontPage.scss';
 
 type CheckoutStep = 'cart' | 'details' | 'payment' | 'confirmation';
 type PaymentMethod = 'ONLINE' | 'BANK_TRANSFER' | 'CASH';
+type SortOption = 'default' | 'price-asc' | 'price-desc' | 'newest' | 'name-asc';
+
+// Day names in order for business hours display
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+
+/**
+ * Get the current day name (e.g., "Monday").
+ */
+function getCurrentDayName(): string {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[new Date().getDay()];
+}
+
+/**
+ * Format time string (e.g., "09:00" -> "9:00 AM", "17:00" -> "5:00 PM").
+ */
+function formatTime(time: string): string {
+    const [hourStr, minuteStr] = time.split(':');
+    const hour = parseInt(hourStr, 10);
+    const minute = minuteStr || '00';
+    if (hour === 0) return `12:${minute} AM`;
+    if (hour < 12) return `${hour}:${minute} AM`;
+    if (hour === 12) return `12:${minute} PM`;
+    return `${hour - 12}:${minute} PM`;
+}
 
 const checkoutSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -74,6 +106,8 @@ export function PublicStorefrontPage() {
     const [orderNumber, setOrderNumber] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [sortOption, setSortOption] = useState<SortOption>('default');
+    const [hoursExpanded, setHoursExpanded] = useState(false);
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
     const PAGE_SIZE = 24;
 
@@ -166,16 +200,40 @@ export function PublicStorefrontPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams, slug]);
 
-    // Filtered products
+    // Filtered and sorted products
     const filteredProducts = useMemo(() => {
-        if (!searchQuery.trim()) return products;
-        const query = searchQuery.toLowerCase();
-        return products.filter(
-            (p) =>
-                p.name.toLowerCase().includes(query) ||
-                (p.description && p.description.toLowerCase().includes(query))
-        );
-    }, [products, searchQuery]);
+        let result = products;
+
+        // Apply search filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            result = result.filter(
+                (p) =>
+                    p.name.toLowerCase().includes(query) ||
+                    (p.description && p.description.toLowerCase().includes(query))
+            );
+        }
+
+        // Apply sorting
+        if (sortOption !== 'default') {
+            result = [...result].sort((a, b) => {
+                switch (sortOption) {
+                    case 'price-asc':
+                        return a.unitPrice - b.unitPrice;
+                    case 'price-desc':
+                        return b.unitPrice - a.unitPrice;
+                    case 'newest':
+                        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                    case 'name-asc':
+                        return a.name.localeCompare(b.name);
+                    default:
+                        return 0;
+                }
+            });
+        }
+
+        return result;
+    }, [products, searchQuery, sortOption]);
 
     // Cart calculations
     const cartSubtotal = useMemo(() => {
@@ -198,6 +256,37 @@ export function PublicStorefrontPage() {
     // Helper function to add product to cart
     const handleAddToCart = (product: Product) => {
         addToCart({ productId: product.id, product, quantity: 1 });
+    };
+
+    // Generate WhatsApp order message
+    const generateWhatsAppMessage = (): string => {
+        const lines = [
+            `Hi! I'd like to place an order from ${store?.storeName}:`,
+            '',
+        ];
+
+        cart.forEach((item) => {
+            lines.push(`- ${item.product.name} x${item.quantity} @ ${formatCurrency(item.product.unitPrice)} each`);
+        });
+
+        lines.push('');
+        lines.push(`Subtotal: ${formatCurrency(cartSubtotal / 100)}`);
+        if (cartVat > 0) {
+            lines.push(`VAT: ${formatCurrency(cartVat / 100)}`);
+        }
+        lines.push(`Total: ${formatCurrency(cartTotal / 100)}`);
+        lines.push('');
+        lines.push('Please confirm availability and payment details. Thank you!');
+
+        return lines.join('\n');
+    };
+
+    // Open WhatsApp with pre-filled order message
+    const handleWhatsAppOrder = () => {
+        if (!store?.whatsappNumber) return;
+        const message = encodeURIComponent(generateWhatsAppMessage());
+        const whatsappUrl = `https://wa.me/${store.whatsappNumber.replace(/[^0-9+]/g, '')}?text=${message}`;
+        window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
     };
 
     // Checkout - called after form validation passes
@@ -250,12 +339,50 @@ export function PublicStorefrontPage() {
         }
     };
 
-    // Render loading
+    // Render loading skeleton
     if (loading) {
         return (
-            <div className="storefront storefront--loading">
-                <Loading withOverlay={false} description="Loading store..." />
-            </div>
+            <Theme theme="white">
+                <div className="storefront">
+                    {/* Skeleton header */}
+                    <header className="storefront__header">
+                        <div className="storefront__header-content">
+                            <div className="storefront__brand">
+                                <SkeletonPlaceholder className="storefront__skeleton-logo" />
+                                <div className="storefront__brand-info">
+                                    <SkeletonText heading width="180px" />
+                                    <SkeletonText width="240px" />
+                                </div>
+                            </div>
+                            <SkeletonPlaceholder className="storefront__skeleton-cart-btn" />
+                        </div>
+                    </header>
+
+                    {/* Skeleton search */}
+                    <div className="storefront__search">
+                        <SkeletonPlaceholder className="storefront__skeleton-search" />
+                    </div>
+
+                    {/* Skeleton product grid */}
+                    <main className="storefront__products">
+                        <div className="storefront__grid">
+                            {Array.from({ length: 8 }).map((_, i) => (
+                                <Tile key={i} className="product-card product-card--skeleton">
+                                    <SkeletonPlaceholder className="product-card__skeleton-image" />
+                                    <div className="product-card__content">
+                                        <SkeletonText heading width="70%" />
+                                        <SkeletonText lineCount={2} width="100%" />
+                                    </div>
+                                    <div className="product-card__footer">
+                                        <SkeletonText width="60px" />
+                                        <SkeletonPlaceholder className="product-card__skeleton-button" />
+                                    </div>
+                                </Tile>
+                            ))}
+                        </div>
+                    </main>
+                </div>
+            </Theme>
         );
     }
 
@@ -321,6 +448,62 @@ export function PublicStorefrontPage() {
                     </div>
                 </header>
 
+                {/* Business Hours */}
+                {store.businessHours && Object.keys(store.businessHours).length > 0 && (
+                    <div className="storefront__hours">
+                        <div className="storefront__hours-content">
+                            {(() => {
+                                const today = getCurrentDayName();
+                                const todayKey = today.toLowerCase();
+                                const todayHours = store.businessHours![todayKey] || store.businessHours![today];
+                                return (
+                                    <>
+                                        <div className="storefront__hours-today">
+                                            <Time size={16} />
+                                            {todayHours ? (
+                                                <span>
+                                                    <strong>Open today:</strong> {formatTime(todayHours.open)} &ndash; {formatTime(todayHours.close)}
+                                                </span>
+                                            ) : (
+                                                <span><strong>Closed today</strong></span>
+                                            )}
+                                        </div>
+                                        <button
+                                            className="storefront__hours-toggle"
+                                            onClick={() => setHoursExpanded(!hoursExpanded)}
+                                            type="button"
+                                            aria-expanded={hoursExpanded}
+                                        >
+                                            {hoursExpanded ? 'Hide schedule' : 'View full schedule'}
+                                            {hoursExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                        </button>
+                                    </>
+                                );
+                            })()}
+                        </div>
+                        {hoursExpanded && (
+                            <div className="storefront__hours-schedule">
+                                {DAY_NAMES.map((day) => {
+                                    const dayKey = day.toLowerCase();
+                                    const hours = store.businessHours![dayKey] || store.businessHours![day];
+                                    const isToday = day === getCurrentDayName();
+                                    return (
+                                        <div
+                                            key={day}
+                                            className={`storefront__hours-day ${isToday ? 'storefront__hours-day--today' : ''}`}
+                                        >
+                                            <span className="storefront__hours-day-name">{day}</span>
+                                            <span className="storefront__hours-day-time">
+                                                {hours ? `${formatTime(hours.open)} - ${formatTime(hours.close)}` : 'Closed'}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Not accepting orders banner */}
                 {!store.acceptOrders && (
                     <InlineNotification
@@ -332,15 +515,32 @@ export function PublicStorefrontPage() {
                     />
                 )}
 
-                {/* Search */}
+                {/* Search & Sort */}
                 <div className="storefront__search">
-                    <TextInput
-                        id="product-search"
-                        labelText=""
-                        placeholder="Search products..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                    <div className="storefront__search-row">
+                        <TextInput
+                            id="product-search"
+                            labelText=""
+                            placeholder="Search products..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="storefront__search-input"
+                        />
+                        <Select
+                            id="product-sort"
+                            labelText=""
+                            hideLabel
+                            value={sortOption}
+                            onChange={(e) => setSortOption(e.target.value as SortOption)}
+                            className="storefront__sort-select"
+                        >
+                            <SelectItem value="default" text="Default" />
+                            <SelectItem value="price-asc" text="Price: Low to High" />
+                            <SelectItem value="price-desc" text="Price: High to Low" />
+                            <SelectItem value="newest" text="Newest First" />
+                            <SelectItem value="name-asc" text="Name: A to Z" />
+                        </Select>
+                    </div>
                 </div>
 
                 {/* Products Grid */}
@@ -515,6 +715,19 @@ export function PublicStorefrontPage() {
                                                 hideCloseButton
                                                 lowContrast
                                             />
+                                        )}
+                                        {store.whatsappNumber && cart.length > 0 && (
+                                            <div className="cart__whatsapp">
+                                                <Button
+                                                    kind="tertiary"
+                                                    size="md"
+                                                    renderIcon={ChatLaunch}
+                                                    onClick={handleWhatsAppOrder}
+                                                    className="cart__whatsapp-button"
+                                                >
+                                                    Order via WhatsApp
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
                                 </>

@@ -6,7 +6,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Theme,
-    Loading,
     Search,
     Tile,
     Button,
@@ -14,6 +13,8 @@ import {
     Tag,
     Select,
     SelectItem,
+    SkeletonText,
+    SkeletonPlaceholder,
 } from '@carbon/react';
 import {
     Store as StoreIcon,
@@ -105,8 +106,48 @@ export function StoreDirectoryPage() {
     if (loading && stores.length === 0) {
         return (
             <Theme theme="white">
-                <div className="directory directory--loading">
-                    <Loading description="Loading stores..." withOverlay={false} />
+                <div className="directory">
+                    {/* Skeleton hero */}
+                    <header className="directory__hero">
+                        <div className="directory__hero-content">
+                            <h1 className="directory__hero-title">
+                                <SkeletonPlaceholder className="directory__skeleton-logo" />
+                                <SkeletonText heading width="160px" />
+                            </h1>
+                            <SkeletonText width="280px" />
+                        </div>
+                    </header>
+
+                    {/* Skeleton search bar */}
+                    <section className="directory__search">
+                        <div className="directory__search-container">
+                            <SkeletonPlaceholder className="directory__skeleton-search" />
+                            <SkeletonPlaceholder className="directory__skeleton-category" />
+                        </div>
+                    </section>
+
+                    {/* Skeleton store cards */}
+                    <main className="directory__main">
+                        <div className="directory__grid">
+                            {Array.from({ length: 8 }).map((_, i) => (
+                                <Tile key={i} className="directory__store-card directory__store-card--skeleton">
+                                    <div className="directory__store-header">
+                                        <SkeletonPlaceholder className="directory__skeleton-store-logo" />
+                                        <div className="directory__store-info">
+                                            <SkeletonText heading width="70%" />
+                                            <SkeletonText width="50%" />
+                                        </div>
+                                    </div>
+                                    <SkeletonText width="80px" />
+                                    <SkeletonText lineCount={2} width="100%" />
+                                    <div className="directory__store-footer">
+                                        <SkeletonText width="120px" />
+                                        <SkeletonText width="80px" />
+                                    </div>
+                                </Tile>
+                            ))}
+                        </div>
+                    </main>
                 </div>
             </Theme>
         );
