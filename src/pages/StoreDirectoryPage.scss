@@ -32,12 +32,11 @@
   }
 
   &__hero-logo {
-    height: 40px;
+    height: 32px;
     width: auto;
-    filter: brightness(0) invert(1); // Make SVG white on the blue background
 
     @include breakpoint('md') {
-      height: 52px;
+      height: 40px;
     }
   }
 
@@ -300,7 +299,8 @@
   }
 
   &__footer-logo {
-    height: 16px;
+    height: 14px;
     width: auto;
+    vertical-align: middle;
   }
 }
