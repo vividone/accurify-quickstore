@@ -3,7 +3,7 @@
  * No authentication required.
  */
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import {
     Theme,
     Loading,
@@ -25,7 +25,11 @@ import {
     Email,
     Location,
     Wallet,
+    ArrowRight,
 } from '@carbon/icons-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { publicStoreApi } from '@/services/api/public-store.api';
 import type { Store } from '@/types/store.types';
 import { FulfillmentType } from '@/types/store.types';
@@ -37,39 +41,56 @@ import './PublicStorefrontPage.scss';
 type CheckoutStep = 'cart' | 'details' | 'payment' | 'confirmation';
 type PaymentMethod = 'ONLINE' | 'BANK_TRANSFER' | 'CASH';
 
-interface CustomerDetails {
-    name: string;
-    phone: string;
-    email: string;
-    address: string;
-    deliveryNotes: string;
-}
+const checkoutSchema = z.object({
+    name: z.string().min(2, 'Name must be at least 2 characters'),
+    phone: z.string()
+        .min(10, 'Phone number must be at least 10 digits')
+        .max(15, 'Phone number is too long')
+        .regex(/^[+]?[\d\s()-]+$/, 'Invalid phone number format'),
+    email: z.string().email('Please enter a valid email address'),
+    address: z.string(),
+    deliveryNotes: z.string().max(500, 'Notes must be under 500 characters'),
+});
+
+type CheckoutFormData = z.infer<typeof checkoutSchema>;
 
 export function PublicStorefrontPage() {
     const { slug } = useParams<{ slug: string }>();
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const { cart, addToCart, updateQuantity, removeFromCart, clearCart, getCartItemCount } = useCart();
 
     // State
     const [store, setStore] = useState<Store | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(false);
+    const [currentPage, setCurrentPage] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [cartOpen, setCartOpen] = useState(false);
     const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart');
-    const [customerDetails, setCustomerDetails] = useState<CustomerDetails>({
-        name: '',
-        phone: '',
-        email: '',
-        address: '',
-        deliveryNotes: '',
-    });
     const [orderNumber, setOrderNumber] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
+    const PAGE_SIZE = 24;
 
-    // Load store and products
+    // Checkout form with Zod validation
+    const {
+        register,
+        handleSubmit: handleFormSubmit,
+        watch,
+        formState: { errors },
+        getValues,
+    } = useForm<CheckoutFormData>({
+        resolver: zodResolver(checkoutSchema),
+        defaultValues: { name: '', phone: '', email: '', address: '', deliveryNotes: '' },
+    });
+    const watchedEmail = watch('email');
+    const watchedAddress = watch('address');
+
+    // Load store and first page of products
     useEffect(() => {
         async function loadStore() {
             if (!slug) return;
@@ -80,7 +101,7 @@ export function PublicStorefrontPage() {
 
                 const [storeRes, productsRes] = await Promise.all([
                     publicStoreApi.getStore(slug),
-                    publicStoreApi.getProducts(slug, 0, 100),
+                    publicStoreApi.getProducts(slug, 0, PAGE_SIZE),
                 ]);
 
                 if (storeRes.success && storeRes.data) {
@@ -91,6 +112,8 @@ export function PublicStorefrontPage() {
 
                 if (productsRes.success && productsRes.data) {
                     setProducts(productsRes.data.content);
+                    setHasMore(!productsRes.data.last);
+                    setCurrentPage(0);
                 }
             } catch (err) {
                 console.error('Failed to load store:', err);
@@ -103,22 +126,39 @@ export function PublicStorefrontPage() {
         loadStore();
     }, [slug]);
 
-    // Handle payment callback
+    // Load more products
+    const handleLoadMore = async () => {
+        if (!slug || loadingMore) return;
+        try {
+            setLoadingMore(true);
+            const nextPage = currentPage + 1;
+            const res = await publicStoreApi.getProducts(slug, nextPage, PAGE_SIZE);
+            if (res.success && res.data) {
+                setProducts((prev) => [...prev, ...res.data!.content]);
+                setHasMore(!res.data.last);
+                setCurrentPage(nextPage);
+            }
+        } catch (err) {
+            console.error('Failed to load more products:', err);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
+    // Handle payment callback — redirect to order tracking page
     useEffect(() => {
         const reference = searchParams.get('reference');
         const orderNum = searchParams.get('order');
 
         if (reference && orderNum && slug) {
-            // Verify payment
             publicStoreApi.verifyPayment(slug, orderNum, reference).then((res) => {
                 if (res.success) {
-                    setOrderNumber(orderNum);
-                    setCheckoutStep('confirmation');
-                    setCartOpen(true);
+                    clearCart();
+                    navigate(`/${slug}/orders/${orderNum}`, { replace: true });
                 }
             });
         }
-    }, [searchParams, slug]);
+    }, [searchParams, slug, navigate, clearCart]);
 
     // Filtered products
     const filteredProducts = useMemo(() => {
@@ -154,20 +194,20 @@ export function PublicStorefrontPage() {
         addToCart({ productId: product.id, product, quantity: 1 });
     };
 
-    // Checkout
-    const handlePlaceOrder = async () => {
+    // Checkout - called after form validation passes
+    const handlePlaceOrder = async (formData: CheckoutFormData) => {
         if (!slug || !store) return;
 
         try {
             setSubmitting(true);
 
             const orderRes = await publicStoreApi.placeOrder(slug, {
-                customerName: customerDetails.name,
-                customerPhone: customerDetails.phone,
-                customerEmail: customerDetails.email,
-                customerAddress: customerDetails.address,
-                deliveryNotes: customerDetails.deliveryNotes,
-                fulfillmentType: customerDetails.address ? FulfillmentType.DELIVERY : FulfillmentType.PICKUP,
+                customerName: formData.name,
+                customerPhone: formData.phone,
+                customerEmail: formData.email,
+                customerAddress: formData.address,
+                deliveryNotes: formData.deliveryNotes,
+                fulfillmentType: formData.address ? FulfillmentType.DELIVERY : FulfillmentType.PICKUP,
                 items: cart.map((item) => ({
                     productId: item.productId,
                     quantity: item.quantity,
@@ -177,13 +217,13 @@ export function PublicStorefrontPage() {
             if (orderRes.success && orderRes.data) {
                 setOrderNumber(orderRes.data.orderNumber);
 
-                // If online payment is selected and customer provided email, redirect to payment
-                if (selectedPaymentMethod === 'ONLINE' && customerDetails.email) {
+                // If online payment, redirect to Paystack
+                if (selectedPaymentMethod === 'ONLINE' && formData.email) {
                     const callbackUrl = `${window.location.origin}/${slug}?order=${orderRes.data.orderNumber}`;
                     const paymentRes = await publicStoreApi.initializePayment(
                         slug,
                         orderRes.data.orderNumber,
-                        customerDetails.email,
+                        formData.email,
                         callbackUrl
                     );
 
@@ -299,18 +339,31 @@ export function PublicStorefrontPage() {
                             <p>No products found</p>
                         </div>
                     ) : (
-                        <div className="storefront__grid">
-                            {filteredProducts.map((product) => (
-                                <ProductCard
-                                    key={product.id}
-                                    product={product}
-                                    storeSlug={slug!}
-                                    onAddToCart={() => handleAddToCart(product)}
-                                    inCart={cart.some((item) => item.productId === product.id)}
-                                    disabled={!store.acceptOrders || product.outOfStock}
-                                />
-                            ))}
-                        </div>
+                        <>
+                            <div className="storefront__grid">
+                                {filteredProducts.map((product) => (
+                                    <ProductCard
+                                        key={product.id}
+                                        product={product}
+                                        storeSlug={slug!}
+                                        onAddToCart={() => handleAddToCart(product)}
+                                        inCart={cart.some((item) => item.productId === product.id)}
+                                        disabled={!store.acceptOrders || product.outOfStock}
+                                    />
+                                ))}
+                            </div>
+                            {hasMore && !searchQuery && (
+                                <div className="storefront__load-more">
+                                    <Button
+                                        kind="tertiary"
+                                        onClick={handleLoadMore}
+                                        disabled={loadingMore}
+                                    >
+                                        {loadingMore ? 'Loading...' : 'Load More Products'}
+                                    </Button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </main>
 
@@ -367,12 +420,7 @@ export function PublicStorefrontPage() {
                     }
                     primaryButtonDisabled={
                         (checkoutStep === 'cart' && cart.length === 0) ||
-                        (checkoutStep === 'details' && (
-                            !customerDetails.name ||
-                            !customerDetails.phone ||
-                            !customerDetails.email ||
-                            !selectedPaymentMethod
-                        )) ||
+                        (checkoutStep === 'details' && !selectedPaymentMethod) ||
                         submitting
                     }
                     secondaryButtonText={checkoutStep === 'details' ? 'Back' : undefined}
@@ -380,7 +428,7 @@ export function PublicStorefrontPage() {
                         checkoutStep === 'cart'
                             ? () => setCheckoutStep('details')
                             : checkoutStep === 'details'
-                                ? handlePlaceOrder
+                                ? handleFormSubmit(handlePlaceOrder)
                                 : undefined
                     }
                     onSecondarySubmit={checkoutStep === 'details' ? () => setCheckoutStep('cart') : undefined}
@@ -469,34 +517,28 @@ export function PublicStorefrontPage() {
                                 id="customer-name"
                                 labelText="Your Name *"
                                 placeholder="John Doe"
-                                value={customerDetails.name}
-                                onChange={(e) =>
-                                    setCustomerDetails((prev) => ({ ...prev, name: e.target.value }))
-                                }
-                                required
+                                invalid={!!errors.name}
+                                invalidText={errors.name?.message}
+                                {...register('name')}
                             />
                             <TextInput
                                 id="customer-phone"
                                 labelText="Phone Number *"
-                                placeholder="+234 800 000 0000"
-                                value={customerDetails.phone}
-                                onChange={(e) =>
-                                    setCustomerDetails((prev) => ({ ...prev, phone: e.target.value }))
-                                }
-                                required
+                                placeholder="08012345678"
+                                invalid={!!errors.phone}
+                                invalidText={errors.phone?.message}
+                                {...register('phone')}
                             />
                             <TextInput
                                 id="customer-email"
                                 labelText="Email *"
                                 placeholder="you@example.com"
                                 type="email"
-                                value={customerDetails.email}
-                                onChange={(e) =>
-                                    setCustomerDetails((prev) => ({ ...prev, email: e.target.value }))
-                                }
-                                required
+                                invalid={!!errors.email}
+                                invalidText={errors.email?.message}
+                                {...register('email')}
                             />
-                            {!customerDetails.email && (
+                            {!watchedEmail && (
                                 <InlineNotification
                                     kind="info"
                                     title="Email required for order confirmation"
@@ -512,19 +554,17 @@ export function PublicStorefrontPage() {
                                         id="customer-address"
                                         labelText="Delivery Address"
                                         placeholder="Enter your delivery address"
-                                        value={customerDetails.address}
-                                        onChange={(e) =>
-                                            setCustomerDetails((prev) => ({ ...prev, address: e.target.value }))
-                                        }
+                                        invalid={!!errors.address}
+                                        invalidText={errors.address?.message}
+                                        {...register('address')}
                                     />
                                     <TextInput
                                         id="delivery-notes"
                                         labelText="Delivery Notes"
                                         placeholder="Any special instructions"
-                                        value={customerDetails.deliveryNotes}
-                                        onChange={(e) =>
-                                            setCustomerDetails((prev) => ({ ...prev, deliveryNotes: e.target.value }))
-                                        }
+                                        invalid={!!errors.deliveryNotes}
+                                        invalidText={errors.deliveryNotes?.message}
+                                        {...register('deliveryNotes')}
                                     />
                                 </>
                             )}
@@ -557,7 +597,7 @@ export function PublicStorefrontPage() {
                                             size="sm"
                                             onClick={() => setSelectedPaymentMethod('CASH')}
                                         >
-                                            Cash on {customerDetails.address ? 'Delivery' : 'Pickup'}
+                                            Cash on {watchedAddress ? 'Delivery' : 'Pickup'}
                                         </Button>
                                     )}
                                 </div>
@@ -584,7 +624,7 @@ export function PublicStorefrontPage() {
                                 {selectedPaymentMethod === 'CASH' && (
                                     <InlineNotification
                                         kind="info"
-                                        title={`Cash on ${customerDetails.address ? 'Delivery' : 'Pickup'}`}
+                                        title={`Cash on ${watchedAddress ? 'Delivery' : 'Pickup'}`}
                                         subtitle="Order confirmation and receipt will be sent to your email."
                                         hideCloseButton
                                         lowContrast
@@ -604,7 +644,7 @@ export function PublicStorefrontPage() {
                                         <span>{formatCurrency(cartVat / 100)}</span>
                                     </div>
                                 )}
-                                {customerDetails.address && store.deliveryFeeKobo > 0 && (
+                                {watchedAddress && store.deliveryFeeKobo > 0 && (
                                     <div className="checkout-form__line">
                                         <span>Delivery Fee</span>
                                         <span>{formatCurrency(store.deliveryFeeKobo / 100)}</span>
@@ -614,7 +654,7 @@ export function PublicStorefrontPage() {
                                     <span>Total</span>
                                     <strong>
                                         {formatCurrency(
-                                            (cartTotal + (customerDetails.address ? store.deliveryFeeKobo : 0)) / 100
+                                            (cartTotal + (watchedAddress ? store.deliveryFeeKobo : 0)) / 100
                                         )}
                                     </strong>
                                 </div>
@@ -637,11 +677,11 @@ export function PublicStorefrontPage() {
                             <p>Your order number is:</p>
                             <div className="order-confirmation__number">{orderNumber}</div>
                             <p>
-                                We'll contact you at <strong>{customerDetails.phone}</strong> to confirm your order.
+                                We'll contact you at <strong>{getValues('phone')}</strong> to confirm your order.
                             </p>
-                            {customerDetails.email && (
+                            {getValues('email') && (
                                 <p>
-                                    Order receipt has been sent to <strong>{customerDetails.email}</strong>
+                                    Order receipt has been sent to <strong>{getValues('email')}</strong>
                                 </p>
                             )}
                             {store.phone && (
@@ -650,6 +690,11 @@ export function PublicStorefrontPage() {
                                     <a href={`tel:${store.phone}`}>{store.phone}</a>
                                 </p>
                             )}
+                            <Link to={`/${slug}/orders/${orderNumber}`} className="order-confirmation__track-link">
+                                <Button kind="primary" renderIcon={ArrowRight}>
+                                    Track Your Order
+                                </Button>
+                            </Link>
                         </div>
                     )}
                 </Modal>

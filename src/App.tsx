@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/react';
 import { PublicStorefrontPage } from '@/pages/PublicStorefrontPage';
 import { StoreDirectoryPage } from '@/pages/StoreDirectoryPage';
 import { ProductDetailPage } from '@/pages/ProductDetailPage';
+import { OrderTrackingPage } from '@/pages/OrderTrackingPage';
 import { CartProvider } from '@/context/CartContext';
 import './App.scss'
 
@@ -46,6 +47,8 @@ function App() {
       <Routes>
         {/* Landing page - lists all stores */}
         <Route path="/" element={<StoreDirectoryPage />} />
+        {/* Order tracking page */}
+        <Route path="/:storeSlug/orders/:orderNumber" element={<OrderTrackingPage />} />
         {/* Product detail pages */}
         <Route path="/:storeSlug/products/:productSlug" element={<ProductPage />} />
         {/* Individual store pages */}

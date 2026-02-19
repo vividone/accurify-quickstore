@@ -21,11 +21,43 @@ const PUBLIC_STORE_BASE = '/public/store';
 
 export interface PublicStoreOrder {
     id: string;
+    storeId: string;
     orderNumber: string;
+    customerName?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    customerAddress?: string;
+    source: string;
     status: string;
-    paymentStatus: string;
+    fulfillmentType: string;
+    deliveryNotes?: string;
+    subtotalKobo: number;
+    discountKobo: number;
+    taxKobo: number;
+    deliveryFeeKobo: number;
     totalKobo: number;
+    paymentStatus: string;
+    paymentMethod?: string;
+    paymentReference?: string;
+    paidAmountKobo: number;
+    paidAt?: string;
+    confirmedAt?: string;
+    completedAt?: string;
+    cancelledAt?: string;
+    cancellationReason?: string;
+    notes?: string;
+    items: Array<{
+        id: string;
+        productId: string;
+        productName: string;
+        productSku?: string;
+        unitPriceKobo: number;
+        quantity: number;
+        totalKobo: number;
+        notes?: string;
+    }>;
     createdAt: string;
+    updatedAt: string;
 }
 
 export interface CartItem {
