@@ -118,7 +118,10 @@ export function StoreDirectoryPage() {
                 {/* Hero Section */}
                 <header className="directory__hero">
                     <div className="directory__hero-content">
-                        <h1>Accurify QuickStore</h1>
+                        <h1 className="directory__hero-title">
+                            <img src="/accurify-icon.svg" alt="Accurify" className="directory__hero-logo" />
+                            <span>QuickStore</span>
+                        </h1>
                         <p>Discover and shop from local businesses</p>
                     </div>
                 </header>
@@ -262,7 +265,7 @@ export function StoreDirectoryPage() {
 
                 {/* Footer */}
                 <footer className="directory__footer">
-                    <p>Powered by <strong>Accurify</strong></p>
+                    <p>Powered by <img src="/accurify-icon.svg" alt="Accurify" className="directory__footer-logo" /> <strong>Accurify</strong></p>
                 </footer>
             </div>
         </Theme>
