@@ -10,10 +10,35 @@ import type { ApiResponse, PageResponse } from '@/types/api.types';
 // Create a separate axios instance for public endpoints (no auth)
 const publicClient = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1',
+    timeout: 15000,
     headers: {
         'Content-Type': 'application/json',
     },
 });
+
+// Normalize API errors into consistent ApiResponse format
+// This prevents unhandled exceptions from crashing the error boundary
+publicClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response) {
+            // Server responded with a non-2xx status — return the error as a failed ApiResponse
+            return Promise.resolve({
+                data: {
+                    success: false,
+                    message: error.response.data?.message || `Request failed (${error.response.status})`,
+                },
+            });
+        }
+        // Network error / CORS / timeout — return a safe failed response
+        return Promise.resolve({
+            data: {
+                success: false,
+                message: 'Unable to connect. Please check your connection and try again.',
+            },
+        });
+    }
+);
 
 const PUBLIC_STORE_BASE = '/public/store';
 

@@ -151,14 +151,19 @@ export function PublicStorefrontPage() {
         const orderNum = searchParams.get('order');
 
         if (reference && orderNum && slug) {
-            publicStoreApi.verifyPayment(slug, orderNum, reference).then((res) => {
-                if (res.success) {
-                    clearCart();
-                    navigate(`/${slug}/orders/${orderNum}`, { replace: true });
-                }
-            });
+            publicStoreApi.verifyPayment(slug, orderNum, reference)
+                .then((res) => {
+                    if (res.success) {
+                        clearCart();
+                        navigate(`/${slug}/orders/${orderNum}`, { replace: true });
+                    }
+                })
+                .catch((err) => {
+                    console.error('Payment verification failed:', err);
+                });
         }
-    }, [searchParams, slug, navigate, clearCart]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams, slug]);
 
     // Filtered products
     const filteredProducts = useMemo(() => {

@@ -30,19 +30,26 @@ function ProductPage() {
 function App() {
   return (
     <Sentry.ErrorBoundary
-      fallback={({ error, resetError }) => (
+      fallback={({ resetError }) => (
         <div style={{ padding: '2rem', textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
           <h1>Oops! Something went wrong</h1>
-          <p style={{ marginTop: '1rem', color: '#666' }}>{error instanceof Error ? error.message : 'An unexpected error occurred'}</p>
-          <button
-            onClick={resetError}
-            style={{ marginTop: '1.5rem', padding: '0.75rem 1.5rem', background: '#1a56db', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-          >
-            Try again
-          </button>
+          <p style={{ marginTop: '1rem', color: '#666' }}>Please try refreshing the page.</p>
+          <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
+            <button
+              onClick={() => window.location.reload()}
+              style={{ padding: '0.75rem 1.5rem', background: '#0f62fe', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+            >
+              Refresh Page
+            </button>
+            <button
+              onClick={resetError}
+              style={{ padding: '0.75rem 1.5rem', background: 'transparent', color: '#0f62fe', border: '1px solid #0f62fe', borderRadius: '6px', cursor: 'pointer' }}
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       )}
-      showDialog
     >
       <Routes>
         {/* Landing page - lists all stores */}
