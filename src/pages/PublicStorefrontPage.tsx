@@ -76,11 +76,16 @@ function formatTime(time: string): string {
 const checkoutSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
     phone: z.string()
-        .min(10, 'Phone number must be at least 10 digits')
-        .max(15, 'Phone number is too long')
-        .regex(/^[+]?[\d\s()-]+$/, 'Invalid phone number format'),
+        .min(1, 'Phone number is required')
+        .refine((val) => {
+            const cleaned = val.replace(/[\s()-]/g, '');
+            return /^0\d{10}$/.test(cleaned) || /^\+234\d{10}$/.test(cleaned);
+        }, 'Enter a valid Nigerian phone number (e.g. 08012345678)'),
     email: z.string().email('Please enter a valid email address'),
-    address: z.string(),
+    address: z.string().refine((val) => {
+        if (!val || val.trim().length === 0) return true;
+        return val.trim().length >= 10;
+    }, 'Delivery address must be at least 10 characters'),
     deliveryNotes: z.string().max(500, 'Notes must be under 500 characters'),
 });
 
