@@ -403,6 +403,92 @@
     margin-top: $spacing-02;
   }
 
+  // Payment Proof
+  &__payment-proof-card {
+    padding: $spacing-05;
+
+    h2 {
+      @include type-style('heading-compact-02');
+      display: flex;
+      align-items: center;
+      gap: $spacing-02;
+      margin: 0 0 $spacing-04 0;
+    }
+  }
+
+  &__proof-form {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-04;
+  }
+
+  &__proof-instruction {
+    @include type-style('body-compact-01');
+    color: $gray-70;
+    margin: 0;
+  }
+
+  &__proof-upload {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-02;
+  }
+
+  &__proof-hint {
+    @include type-style('helper-text-01');
+    color: $gray-50;
+  }
+
+  &__proof-submitted {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-03;
+  }
+
+  &__proof-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: $spacing-02;
+    padding: $spacing-02 $spacing-03;
+    background-color: #defbe6;
+    color: #198038;
+    border-radius: 4px;
+    @include type-style('body-compact-01');
+    font-weight: 500;
+    width: fit-content;
+  }
+
+  &__proof-note {
+    @include type-style('body-compact-01');
+    color: $gray-70;
+    margin: 0;
+    font-style: italic;
+  }
+
+  &__proof-date {
+    @include type-style('label-01');
+    color: $gray-50;
+    margin: 0;
+  }
+
+  &__proof-view {
+    display: inline-flex;
+    align-items: center;
+    gap: $spacing-02;
+    color: var(--store-primary);
+    @include type-style('body-compact-01');
+    text-decoration: none;
+    font-weight: 500;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  &__proof-notice {
+    margin-top: $spacing-02;
+  }
+
   // Footer
   &__footer {
     background-color: $white-0;

@@ -199,12 +199,20 @@ export function StoreDirectoryPage() {
                                                     src={store.logoUrl}
                                                     alt={store.storeName}
                                                     className="directory__store-logo"
+                                                    onError={(e) => {
+                                                        const img = e.currentTarget;
+                                                        img.style.display = 'none';
+                                                        const placeholder = img.nextElementSibling as HTMLElement | null;
+                                                        if (placeholder) placeholder.style.display = '';
+                                                    }}
                                                 />
-                                            ) : (
-                                                <div className="directory__store-logo-placeholder">
-                                                    {store.storeName.charAt(0).toUpperCase()}
-                                                </div>
-                                            )}
+                                            ) : null}
+                                            <div
+                                                className="directory__store-logo-placeholder"
+                                                style={store.logoUrl ? { display: 'none' } : undefined}
+                                            >
+                                                {store.storeName.charAt(0).toUpperCase()}
+                                            </div>
                                             <div className="directory__store-info">
                                                 <h3>{store.storeName}</h3>
                                                 {store.city && store.state && (

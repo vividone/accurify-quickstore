@@ -3,6 +3,7 @@
  * Route: /:storeSlug/orders/:orderNumber
  * No authentication required.
  */
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
@@ -12,6 +13,9 @@ import {
   Loading,
   Button,
   Tile,
+  TextInput,
+  FileUploaderDropContainer,
+  InlineNotification,
 } from '@carbon/react';
 import {
   ArrowLeft,
@@ -25,6 +29,8 @@ import {
   Time,
   WarningAlt,
   Close,
+  Upload,
+  DocumentAttachment,
 } from '@carbon/icons-react';
 import { publicStoreApi } from '@/services/api/public-store.api';
 import type { StoreOrder } from '@/types/store.types';
@@ -61,6 +67,12 @@ function getStepIndex(status: OrderStatus): number {
 
 export function OrderTrackingPage() {
   const { storeSlug, orderNumber } = useParams<{ storeSlug: string; orderNumber: string }>();
+  const [logoError, setLogoError] = useState(false);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofNote, setProofNote] = useState('');
+  const [proofSubmitting, setProofSubmitting] = useState(false);
+  const [proofSuccess, setProofSuccess] = useState(false);
+  const [proofError, setProofError] = useState<string | null>(null);
 
   const { data: storeResponse, isLoading: storeLoading } = useQuery({
     queryKey: ['public-store', storeSlug],
@@ -83,6 +95,27 @@ export function OrderTrackingPage() {
   const store = storeResponse?.data;
   const order = orderResponse?.data as StoreOrder | undefined;
   const isLoading = storeLoading || orderLoading;
+
+  const handleProofSubmit = async () => {
+    if (!proofFile || !storeSlug || !orderNumber) return;
+    try {
+      setProofSubmitting(true);
+      setProofError(null);
+      const res = await publicStoreApi.submitPaymentProof(storeSlug, orderNumber, proofFile, proofNote || undefined);
+      if (res.success) {
+        setProofSuccess(true);
+        setProofFile(null);
+        setProofNote('');
+        refetch();
+      } else {
+        setProofError(res.message || 'Failed to submit payment proof');
+      }
+    } catch {
+      setProofError('Failed to submit payment proof. Please try again.');
+    } finally {
+      setProofSubmitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -135,8 +168,13 @@ export function OrderTrackingPage() {
           <div className="order-tracking__header-content">
             {store && (
               <Link to={`/${storeSlug}`} className="order-tracking__brand">
-                {store.logoUrl ? (
-                  <img src={store.logoUrl} alt={store.storeName} className="order-tracking__logo" />
+                {store.logoUrl && !logoError ? (
+                  <img
+                    src={store.logoUrl}
+                    alt={store.storeName}
+                    className="order-tracking__logo"
+                    onError={() => setLogoError(true)}
+                  />
                 ) : (
                   <div className="order-tracking__logo-placeholder">
                     {store.storeName.charAt(0).toUpperCase()}
@@ -260,6 +298,120 @@ export function OrderTrackingPage() {
               </div>
             </div>
           </Tile>
+
+          {/* Payment Proof Section — show for unpaid non-online orders */}
+          {order.paymentStatus !== OrderPaymentStatus.PAID &&
+           order.paymentStatus !== OrderPaymentStatus.REFUNDED &&
+           !isCancelled && (
+            <Tile className="order-tracking__payment-proof-card">
+              <h2><Upload size={18} /> Payment Confirmation</h2>
+
+              {/* Already submitted proof */}
+              {order.paymentProofUrl && (
+                <div className="order-tracking__proof-submitted">
+                  <div className="order-tracking__proof-badge">
+                    <Checkmark size={16} />
+                    <span>Payment proof submitted</span>
+                  </div>
+                  {order.paymentProofNote && (
+                    <p className="order-tracking__proof-note">{order.paymentProofNote}</p>
+                  )}
+                  {order.paymentProofSubmittedAt && (
+                    <p className="order-tracking__proof-date">
+                      Submitted on {new Date(order.paymentProofSubmittedAt).toLocaleDateString('en-NG', {
+                        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })}
+                    </p>
+                  )}
+                  <a href={order.paymentProofUrl} target="_blank" rel="noopener noreferrer" className="order-tracking__proof-view">
+                    <DocumentAttachment size={16} /> View uploaded proof
+                  </a>
+                  <InlineNotification
+                    kind="info"
+                    title="Awaiting confirmation"
+                    subtitle="The store owner will verify your payment and update the order status."
+                    hideCloseButton
+                    lowContrast
+                    className="order-tracking__proof-notice"
+                  />
+                </div>
+              )}
+
+              {/* Upload form — show if no proof submitted yet, or allow re-submission */}
+              {!order.paymentProofUrl && !proofSuccess && (
+                <div className="order-tracking__proof-form">
+                  <p className="order-tracking__proof-instruction">
+                    Made a bank transfer or cash payment? Upload your payment proof so the store can confirm your order.
+                  </p>
+
+                  <div className="order-tracking__proof-upload">
+                    <FileUploaderDropContainer
+                      accept={['image/jpeg', 'image/png', 'image/webp']}
+                      labelText={proofFile ? proofFile.name : 'Drag and drop or click to upload payment proof'}
+                      onAddFiles={(_e: unknown, { addedFiles }: { addedFiles: File[] }) => {
+                        if (addedFiles.length > 0) {
+                          const file = addedFiles[0];
+                          if (file.size > 5 * 1024 * 1024) {
+                            setProofError('File must be less than 5MB');
+                            return;
+                          }
+                          setProofFile(file);
+                          setProofError(null);
+                        }
+                      }}
+                    />
+                    <span className="order-tracking__proof-hint">JPG, PNG or WebP. Max 5MB.</span>
+                  </div>
+
+                  <TextInput
+                    id="proof-note"
+                    labelText="Note (optional)"
+                    placeholder="e.g., Transferred from GTBank at 2:30 PM"
+                    value={proofNote}
+                    onChange={(e) => setProofNote(e.target.value)}
+                    maxLength={500}
+                  />
+
+                  {proofError && (
+                    <InlineNotification
+                      kind="error"
+                      title="Error"
+                      subtitle={proofError}
+                      onCloseButtonClick={() => setProofError(null)}
+                      lowContrast
+                    />
+                  )}
+
+                  <Button
+                    kind="primary"
+                    onClick={handleProofSubmit}
+                    disabled={!proofFile || proofSubmitting}
+                    renderIcon={Upload}
+                  >
+                    {proofSubmitting ? 'Submitting...' : 'Submit Payment Proof'}
+                  </Button>
+                </div>
+              )}
+
+              {/* Success state */}
+              {proofSuccess && !order.paymentProofUrl && (
+                <div className="order-tracking__proof-submitted">
+                  <div className="order-tracking__proof-badge">
+                    <Checkmark size={16} />
+                    <span>Payment proof submitted successfully!</span>
+                  </div>
+                  <InlineNotification
+                    kind="success"
+                    title="Proof received"
+                    subtitle="The store owner will review your payment and update the order status shortly."
+                    hideCloseButton
+                    lowContrast
+                    className="order-tracking__proof-notice"
+                  />
+                </div>
+              )}
+            </Tile>
+          )}
 
           {/* Delivery / Customer Details */}
           <div className="order-tracking__details-row">

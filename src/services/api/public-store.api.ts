@@ -71,6 +71,9 @@ export interface PublicStoreOrder {
     cancelledAt?: string;
     cancellationReason?: string;
     notes?: string;
+    paymentProofUrl?: string;
+    paymentProofSubmittedAt?: string;
+    paymentProofNote?: string;
     items: Array<{
         id: string;
         productId: string;
@@ -221,6 +224,29 @@ export const publicStoreApi = {
             `${PUBLIC_STORE_BASE}/${slug}/orders/${orderNumber}/verify-payment`,
             {
                 params: { reference },
+            }
+        );
+        return response.data;
+    },
+
+    /**
+     * Submit payment proof (e.g., bank transfer screenshot)
+     */
+    submitPaymentProof: async (
+        slug: string,
+        orderNumber: string,
+        file: File,
+        note?: string
+    ): Promise<ApiResponse<PublicStoreOrder>> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (note) formData.append('note', note);
+
+        const response = await publicClient.post<ApiResponse<PublicStoreOrder>>(
+            `${PUBLIC_STORE_BASE}/${slug}/orders/${orderNumber}/payment-proof`,
+            formData,
+            {
+                headers: { 'Content-Type': 'multipart/form-data' },
             }
         );
         return response.data;

@@ -61,6 +61,7 @@ export function PublicStorefrontPage() {
     const { cart, addToCart, updateQuantity, removeFromCart, clearCart, getCartItemCount } = useCart();
 
     // State
+    const [logoError, setLogoError] = useState(false);
     const [store, setStore] = useState<Store | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
@@ -291,8 +292,13 @@ export function PublicStorefrontPage() {
                 <header className="storefront__header">
                     <div className="storefront__header-content">
                         <div className="storefront__brand">
-                            {store.logoUrl ? (
-                                <img src={store.logoUrl} alt={store.storeName} className="storefront__logo" />
+                            {store.logoUrl && !logoError ? (
+                                <img
+                                    src={store.logoUrl}
+                                    alt={store.storeName}
+                                    className="storefront__logo"
+                                    onError={() => setLogoError(true)}
+                                />
                             ) : (
                                 <div className="storefront__logo-placeholder">
                                     {store.storeName.charAt(0).toUpperCase()}
