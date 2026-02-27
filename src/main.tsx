@@ -22,7 +22,7 @@ Sentry.init({
     }),
   ],
   // Performance Monitoring
-  tracesSampleRate: 1.0, // Capture 100% of transactions (reduce in production)
+  tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
   // Session Replay
   replaysSessionSampleRate: 0.1, // 10% of sessions
   replaysOnErrorSampleRate: 1.0, // 100% of sessions with errors

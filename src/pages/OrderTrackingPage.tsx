@@ -33,7 +33,6 @@ import {
   DocumentAttachment,
 } from '@carbon/icons-react';
 import { publicStoreApi } from '@/services/api/public-store.api';
-import type { StoreOrder } from '@/types/store.types';
 import { OrderStatus, OrderPaymentStatus } from '@/types/store.types';
 import { formatCurrency } from '@/utils/currency';
 import './OrderTrackingPage.scss';
@@ -93,7 +92,7 @@ export function OrderTrackingPage() {
   });
 
   const store = storeResponse?.data;
-  const order = orderResponse?.data as StoreOrder | undefined;
+  const order = orderResponse?.data;
   const isLoading = storeLoading || orderLoading;
 
   const handleProofSubmit = async () => {

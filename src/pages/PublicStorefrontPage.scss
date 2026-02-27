@@ -641,6 +641,45 @@
   }
 }
 
+// Category Filter Chips
+.public-store__category-filter {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.5rem $spacing-05;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+
+  &::-webkit-scrollbar { display: none; }
+
+  .category-chip {
+    flex-shrink: 0;
+    padding: 0.25rem 0.875rem;
+    border-radius: 1rem;
+    border: 1px solid #e0e0e0;
+    background: transparent;
+    font-size: 0.875rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.1s, border-color 0.1s;
+
+    &--active {
+      background: #0f62fe;
+      color: #fff;
+      border-color: #0f62fe;
+    }
+
+    &:hover:not(.category-chip--active) {
+      background: #f4f4f4;
+    }
+  }
+}
+
 // Order Confirmation
 .order-confirmation {
   text-align: center;

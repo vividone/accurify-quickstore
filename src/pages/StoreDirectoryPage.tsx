@@ -2,7 +2,7 @@
  * Store Directory Page - Lists all active stores on the platform.
  * Landing page for the storefront application.
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Theme,
@@ -21,6 +21,7 @@ import {
     Location,
     ArrowRight,
 } from '@carbon/icons-react';
+import { useQuery } from '@tanstack/react-query';
 import { publicStoreApi } from '@/services/api/public-store.api';
 import type { Store } from '@/types/store.types';
 import { StoreCategory, StoreCategoryLabels } from '@/types/store.types';
@@ -30,48 +31,24 @@ export function StoreDirectoryPage() {
     const navigate = useNavigate();
 
     // State
-    const [stores, setStores] = useState<Store[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<StoreCategory | null>(null);
     const [page, setPage] = useState(0);
     const [pageSize, setPageSize] = useState(12);
-    const [totalItems, setTotalItems] = useState(0);
 
     // All available categories
     const categories = Object.values(StoreCategory);
 
-    // Load stores
-    useEffect(() => {
-        async function loadStores() {
-            try {
-                setLoading(true);
-                setError(null);
-
-                const response = await publicStoreApi.listStores(
-                    page,
-                    pageSize,
-                    searchQuery || undefined,
-                    selectedCategory || undefined
-                );
-
-                if (response.success && response.data) {
-                    setStores(response.data.content);
-                    setTotalItems(response.data.totalElements);
-                } else {
-                    setError('Failed to load stores');
-                }
-            } catch (err) {
-                console.error('Failed to load stores:', err);
-                setError('Failed to load stores. Please try again.');
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        loadStores();
-    }, [page, pageSize, searchQuery, selectedCategory]);
+    // React Query — replaces useEffect + stores/loading/error/totalItems state
+    const { data: storesData, isLoading, isError, refetch } = useQuery({
+        queryKey: ['stores', page, pageSize, searchQuery, selectedCategory],
+        queryFn: () =>
+            publicStoreApi.listStores(page, pageSize,
+                searchQuery || undefined,
+                selectedCategory ?? undefined),
+    });
+    const stores: Store[] = storesData?.data?.content ?? [];
+    const totalItems: number = storesData?.data?.totalElements ?? 0;
 
     // Handle search with debounce
     const handleSearchChange = (value: string) => {
@@ -103,7 +80,7 @@ export function StoreDirectoryPage() {
         navigate(`/${slug}`);
     };
 
-    if (loading && stores.length === 0) {
+    if (isLoading && stores.length === 0) {
         return (
             <Theme theme="white">
                 <div className="directory">
@@ -201,12 +178,12 @@ export function StoreDirectoryPage() {
 
                 {/* Main Content */}
                 <main className="directory__main">
-                    {error ? (
+                    {isError ? (
                         <div className="directory__error">
                             <StoreIcon size={48} />
                             <h2>Something went wrong</h2>
-                            <p>{error}</p>
-                            <Button onClick={() => window.location.reload()}>
+                            <p>Failed to load stores. Please try again.</p>
+                            <Button onClick={() => refetch()}>
                                 Try Again
                             </Button>
                         </div>

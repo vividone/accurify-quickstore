@@ -3,7 +3,7 @@
  * Used by customers browsing QuickStore storefronts.
  */
 import axios from 'axios';
-import type { Store, OrderRequest, PaymentInitResponse, StoreCategory } from '@/types/store.types';
+import type { Store, StoreOrder, OrderRequest, PaymentInitResponse, StoreCategory } from '@/types/store.types';
 import type { Product } from '@/types/product.types';
 import type { ApiResponse, PageResponse } from '@/types/api.types';
 
@@ -44,49 +44,7 @@ const PUBLIC_STORE_BASE = '/public/store';
 
 // ==================== Types ====================
 
-export interface PublicStoreOrder {
-    id: string;
-    storeId: string;
-    orderNumber: string;
-    customerName?: string;
-    customerPhone?: string;
-    customerEmail?: string;
-    customerAddress?: string;
-    source: string;
-    status: string;
-    fulfillmentType: string;
-    deliveryNotes?: string;
-    subtotalKobo: number;
-    discountKobo: number;
-    taxKobo: number;
-    deliveryFeeKobo: number;
-    totalKobo: number;
-    paymentStatus: string;
-    paymentMethod?: string;
-    paymentReference?: string;
-    paidAmountKobo: number;
-    paidAt?: string;
-    confirmedAt?: string;
-    completedAt?: string;
-    cancelledAt?: string;
-    cancellationReason?: string;
-    notes?: string;
-    paymentProofUrl?: string;
-    paymentProofSubmittedAt?: string;
-    paymentProofNote?: string;
-    items: Array<{
-        id: string;
-        productId: string;
-        productName: string;
-        productSku?: string;
-        unitPriceKobo: number;
-        quantity: number;
-        totalKobo: number;
-        notes?: string;
-    }>;
-    createdAt: string;
-    updatedAt: string;
-}
+export type { StoreOrder };
 
 export interface CartItem {
     productId: string;
@@ -175,8 +133,8 @@ export const publicStoreApi = {
     /**
      * Place an order
      */
-    placeOrder: async (slug: string, order: OrderRequest): Promise<ApiResponse<PublicStoreOrder>> => {
-        const response = await publicClient.post<ApiResponse<PublicStoreOrder>>(
+    placeOrder: async (slug: string, order: OrderRequest): Promise<ApiResponse<StoreOrder>> => {
+        const response = await publicClient.post<ApiResponse<StoreOrder>>(
             `${PUBLIC_STORE_BASE}/${slug}/orders`,
             order
         );
@@ -186,8 +144,8 @@ export const publicStoreApi = {
     /**
      * Track an order
      */
-    trackOrder: async (slug: string, orderNumber: string): Promise<ApiResponse<PublicStoreOrder>> => {
-        const response = await publicClient.get<ApiResponse<PublicStoreOrder>>(
+    trackOrder: async (slug: string, orderNumber: string): Promise<ApiResponse<StoreOrder>> => {
+        const response = await publicClient.get<ApiResponse<StoreOrder>>(
             `${PUBLIC_STORE_BASE}/${slug}/orders/${orderNumber}`
         );
         return response.data;
@@ -219,8 +177,8 @@ export const publicStoreApi = {
         slug: string,
         orderNumber: string,
         reference: string
-    ): Promise<ApiResponse<PublicStoreOrder>> => {
-        const response = await publicClient.get<ApiResponse<PublicStoreOrder>>(
+    ): Promise<ApiResponse<StoreOrder>> => {
+        const response = await publicClient.get<ApiResponse<StoreOrder>>(
             `${PUBLIC_STORE_BASE}/${slug}/orders/${orderNumber}/verify-payment`,
             {
                 params: { reference },
@@ -237,12 +195,12 @@ export const publicStoreApi = {
         orderNumber: string,
         file: File,
         note?: string
-    ): Promise<ApiResponse<PublicStoreOrder>> => {
+    ): Promise<ApiResponse<StoreOrder>> => {
         const formData = new FormData();
         formData.append('file', file);
         if (note) formData.append('note', note);
 
-        const response = await publicClient.post<ApiResponse<PublicStoreOrder>>(
+        const response = await publicClient.post<ApiResponse<StoreOrder>>(
             `${PUBLIC_STORE_BASE}/${slug}/orders/${orderNumber}/payment-proof`,
             formData,
             {

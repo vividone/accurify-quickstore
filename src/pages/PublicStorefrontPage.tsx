@@ -37,6 +37,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { publicStoreApi } from '@/services/api/public-store.api';
 import type { Store } from '@/types/store.types';
 import { FulfillmentType } from '@/types/store.types';
@@ -48,6 +49,8 @@ import './PublicStorefrontPage.scss';
 type CheckoutStep = 'cart' | 'details' | 'payment' | 'confirmation';
 type PaymentMethod = 'ONLINE' | 'BANK_TRANSFER' | 'CASH';
 type SortOption = 'default' | 'price-asc' | 'price-desc' | 'newest' | 'name-asc';
+
+const PAGE_SIZE = 24;
 
 // Day names in order for business hours display
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
@@ -97,15 +100,8 @@ export function PublicStorefrontPage() {
     const navigate = useNavigate();
     const { cart, addToCart, updateQuantity, removeFromCart, clearCart, getCartItemCount } = useCart();
 
-    // State
+    // State — kept unchanged
     const [logoError, setLogoError] = useState(false);
-    const [store, setStore] = useState<Store | null>(null);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const [hasMore, setHasMore] = useState(false);
-    const [currentPage, setCurrentPage] = useState(0);
-    const [error, setError] = useState<string | null>(null);
     const [cartOpen, setCartOpen] = useState(false);
     const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart');
     const [orderNumber, setOrderNumber] = useState<string | null>(null);
@@ -114,7 +110,10 @@ export function PublicStorefrontPage() {
     const [sortOption, setSortOption] = useState<SortOption>('default');
     const [hoursExpanded, setHoursExpanded] = useState(false);
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
-    const PAGE_SIZE = 24;
+
+    // New state for category filter and debounced search
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [debouncedSearch, setDebouncedSearch] = useState('');
 
     // Checkout form with Zod validation
     const {
@@ -130,60 +129,95 @@ export function PublicStorefrontPage() {
     const watchedEmail = watch('email');
     const watchedAddress = watch('address');
 
-    // Load store and first page of products
+    // Debounce search for server-side queries
     useEffect(() => {
-        async function loadStore() {
-            if (!slug) return;
+        const t = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
 
-            try {
-                setLoading(true);
-                setError(null);
+    // Store query
+    const {
+        data: storeData,
+        isLoading: storeLoading,
+        isError: storeError,
+        refetch: refetchStore,
+    } = useQuery({
+        queryKey: ['store', slug],
+        queryFn: () => publicStoreApi.getStore(slug!),
+        enabled: !!slug,
+        retry: 2,
+    });
+    const store: Store | null = storeData?.data ?? null;
 
-                const [storeRes, productsRes] = await Promise.all([
-                    publicStoreApi.getStore(slug),
-                    publicStoreApi.getProducts(slug, 0, PAGE_SIZE),
-                ]);
+    // Products infinite query with server-side search and category
+    const productsQuery = useInfiniteQuery({
+        queryKey: ['products', slug, debouncedSearch, selectedCategory],
+        queryFn: ({ pageParam }) =>
+            publicStoreApi.getProducts(
+                slug!,
+                pageParam as number,
+                PAGE_SIZE,
+                selectedCategory ?? undefined,
+                debouncedSearch || undefined
+            ),
+        initialPageParam: 0,
+        getNextPageParam: (lastPage, allPages) =>
+            lastPage.data?.last ? undefined : allPages.length,
+        enabled: !!slug && !storeLoading && !storeError,
+    });
 
-                if (storeRes.success && storeRes.data) {
-                    setStore(storeRes.data);
-                } else {
-                    setError('Store not found');
-                }
+    // Flatten pages
+    const rawProducts = useMemo(
+        () => productsQuery.data?.pages.flatMap(p => p.data?.content ?? []) ?? [],
+        [productsQuery.data]
+    );
 
-                if (productsRes.success && productsRes.data) {
-                    setProducts(productsRes.data.content);
-                    setHasMore(!productsRes.data.last);
-                    setCurrentPage(0);
-                }
-            } catch (err) {
-                console.error('Failed to load store:', err);
-                setError('Store not found or unavailable');
-            } finally {
-                setLoading(false);
+    // Category chips derived from loaded products (value = enum key for API, label = display name)
+    const availableCategories = useMemo(() => {
+        const seen = new Map<string, string>();
+        rawProducts.forEach((p: Product) => {
+            if (p.category && !seen.has(String(p.category))) {
+                seen.set(String(p.category), p.categoryDisplayName || String(p.category));
             }
+        });
+        return Array.from(seen.entries()).map(([value, label]) => ({ value, label }));
+    }, [rawProducts]);
+
+    // Filtered and sorted products (search is server-side; only sort client-side)
+    const filteredProducts = useMemo(() => {
+        const result = [...rawProducts];
+        switch (sortOption) {
+            case 'price-asc':
+                return result.sort((a, b) => (a.unitPrice ?? 0) - (b.unitPrice ?? 0));
+            case 'price-desc':
+                return result.sort((a, b) => (b.unitPrice ?? 0) - (a.unitPrice ?? 0));
+            case 'newest':
+                return result.sort((a, b) =>
+                    new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+            case 'name-asc':
+                return result.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+            default:
+                return result;
         }
+    }, [rawProducts, sortOption]);
 
-        loadStore();
-    }, [slug]);
+    // Cart calculations
+    const cartSubtotal = useMemo(() => {
+        return cart.reduce((sum, item) => sum + item.product.unitPrice * 100 * item.quantity, 0);
+    }, [cart]);
 
-    // Load more products
-    const handleLoadMore = async () => {
-        if (!slug || loadingMore) return;
-        try {
-            setLoadingMore(true);
-            const nextPage = currentPage + 1;
-            const res = await publicStoreApi.getProducts(slug, nextPage, PAGE_SIZE);
-            if (res.success && res.data) {
-                setProducts((prev) => [...prev, ...res.data!.content]);
-                setHasMore(!res.data.last);
-                setCurrentPage(nextPage);
+    const cartVat = useMemo(() => {
+        return cart.reduce((sum, item) => {
+            if (item.product.taxable && item.product.vatRate > 0) {
+                return sum + (item.product.unitPrice * 100 * item.quantity * item.product.vatRate / 100);
             }
-        } catch (err) {
-            console.error('Failed to load more products:', err);
-        } finally {
-            setLoadingMore(false);
-        }
-    };
+            return sum;
+        }, 0);
+    }, [cart]);
+
+    const cartTotal = cartSubtotal + cartVat;
+
+    const cartItemCount = getCartItemCount();
 
     // Handle payment callback — redirect to order tracking page
     useEffect(() => {
@@ -204,59 +238,6 @@ export function PublicStorefrontPage() {
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams, slug]);
-
-    // Filtered and sorted products
-    const filteredProducts = useMemo(() => {
-        let result = products;
-
-        // Apply search filter
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            result = result.filter(
-                (p) =>
-                    p.name.toLowerCase().includes(query) ||
-                    (p.description && p.description.toLowerCase().includes(query))
-            );
-        }
-
-        // Apply sorting
-        if (sortOption !== 'default') {
-            result = [...result].sort((a, b) => {
-                switch (sortOption) {
-                    case 'price-asc':
-                        return a.unitPrice - b.unitPrice;
-                    case 'price-desc':
-                        return b.unitPrice - a.unitPrice;
-                    case 'newest':
-                        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                    case 'name-asc':
-                        return a.name.localeCompare(b.name);
-                    default:
-                        return 0;
-                }
-            });
-        }
-
-        return result;
-    }, [products, searchQuery, sortOption]);
-
-    // Cart calculations
-    const cartSubtotal = useMemo(() => {
-        return cart.reduce((sum, item) => sum + item.product.unitPrice * 100 * item.quantity, 0);
-    }, [cart]);
-
-    const cartVat = useMemo(() => {
-        return cart.reduce((sum, item) => {
-            if (item.product.taxable && item.product.vatRate > 0) {
-                return sum + (item.product.unitPrice * 100 * item.quantity * item.product.vatRate / 100);
-            }
-            return sum;
-        }, 0);
-    }, [cart]);
-
-    const cartTotal = cartSubtotal + cartVat;
-
-    const cartItemCount = getCartItemCount();
 
     // Helper function to add product to cart
     const handleAddToCart = (product: Product) => {
@@ -345,7 +326,7 @@ export function PublicStorefrontPage() {
     };
 
     // Render loading skeleton
-    if (loading) {
+    if (storeLoading) {
         return (
             <Theme theme="white">
                 <div className="storefront">
@@ -392,26 +373,39 @@ export function PublicStorefrontPage() {
     }
 
     // Render error
-    if (error || !store) {
+    if (storeError) {
         return (
             <Theme theme="white">
                 <div className="storefront storefront--error">
                     <StoreIcon size={64} />
-                    <h1>Store Not Found</h1>
-                    <p>The store you're looking for doesn't exist or is currently unavailable.</p>
+                    <p>Unable to load store. Please check your connection.</p>
+                    <Button onClick={() => refetchStore()}>Try Again</Button>
                 </div>
             </Theme>
         );
     }
 
     // Render store offline
-    if (!store.isActive) {
+    if (store && !store.isActive) {
         return (
             <Theme theme="white">
                 <div className="storefront storefront--offline">
                     <StoreIcon size={64} />
                     <h1>{store.storeName}</h1>
                     <p>This store is currently offline. Please check back later.</p>
+                </div>
+            </Theme>
+        );
+    }
+
+    // Store not found (loaded but no data)
+    if (!store) {
+        return (
+            <Theme theme="white">
+                <div className="storefront storefront--error">
+                    <StoreIcon size={64} />
+                    <h1>Store Not Found</h1>
+                    <p>The store you're looking for doesn't exist or is currently unavailable.</p>
                 </div>
             </Theme>
         );
@@ -548,6 +542,27 @@ export function PublicStorefrontPage() {
                     </div>
                 </div>
 
+                {/* Category Filter Chips */}
+                {availableCategories.length > 1 && (
+                    <div className="public-store__category-filter">
+                        <button
+                            className={`category-chip${!selectedCategory ? ' category-chip--active' : ''}`}
+                            onClick={() => setSelectedCategory(null)}
+                        >
+                            All
+                        </button>
+                        {availableCategories.map(({ value, label }) => (
+                            <button
+                                key={value}
+                                className={`category-chip${selectedCategory === value ? ' category-chip--active' : ''}`}
+                                onClick={() => setSelectedCategory(value)}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 {/* Products Grid */}
                 <main className="storefront__products">
                     {filteredProducts.length === 0 ? (
@@ -568,14 +583,14 @@ export function PublicStorefrontPage() {
                                     />
                                 ))}
                             </div>
-                            {hasMore && !searchQuery && (
+                            {productsQuery.hasNextPage && !debouncedSearch && (
                                 <div className="storefront__load-more">
                                     <Button
-                                        kind="tertiary"
-                                        onClick={handleLoadMore}
-                                        disabled={loadingMore}
+                                        kind="ghost"
+                                        onClick={() => productsQuery.fetchNextPage()}
+                                        disabled={productsQuery.isFetchingNextPage}
                                     >
-                                        {loadingMore ? 'Loading...' : 'Load More Products'}
+                                        {productsQuery.isFetchingNextPage ? 'Loading...' : 'Load More'}
                                     </Button>
                                 </div>
                             )}
